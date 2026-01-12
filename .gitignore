@@ -1,0 +1,47 @@
+# Build artifacts
+/target/
+debug/
+release/
+
+# Cargo
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data files
+*.db
+*.sqlite
+*.sqlite3
+/data/
+
+# Output files
+/output/
+*.json
+*.csv
+*.html
+
+# Viewer build
+/viewer/node_modules/
+/viewer/dist/
+/viewer/.vite/
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+/venv/
+
+# Internal docs
+
+/docs/

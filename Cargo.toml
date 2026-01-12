@@ -1,0 +1,33 @@
+[package]
+name = "kashshaf-reuse"
+version = "0.4.0"
+edition = "2021"
+description = "High-performance text reuse detection for Arabic texts"
+authors = ["Kashshaf Project"]
+license = "MIT"
+
+[dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+rayon = "1.10"
+indicatif = "0.17"
+thiserror = "1.0"
+calamine = "0.24"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "align_bench"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.bench]
+opt-level = 3
+lto = true

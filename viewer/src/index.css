@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.arabic-text {
+  font-family: 'Amiri', 'Traditional Arabic', 'Scheherazade', serif;
+  font-size: 1.1rem;
+  line-height: 2;
+}
+
+.highlight-match {
+  background-color: #fef08a;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.context-text {
+  color: #9ca3af;
+}
+
+.similarity-high {
+  color: #16a34a;
+}
+
+.similarity-medium {
+  color: #ca8a04;
+}
+
+.similarity-low {
+  color: #dc2626;
+}
+
+/* Custom scrollbar for match list */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
