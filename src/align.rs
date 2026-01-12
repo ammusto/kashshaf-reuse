@@ -4,6 +4,7 @@
 //! The algorithm finds the best local alignment between two sequences.
 
 use crate::models::{Alignment, ComparisonParams, MatchMode};
+use std::collections::HashSet;
 
 /// Smith-Waterman local alignment on lemma ID sequences.
 ///
@@ -111,6 +112,13 @@ pub fn align_sequences(
     let mut lemma_matches = 0u32;
     let mut substitutions = 0u32;
     let mut root_only_matches = 0u32;
+    // Track unique matched lemma IDs for lexical diversity calculation.
+    // Lexical diversity = unique_lemmas / lemma_matches.
+    // This metric complements IDF: IDF weights rare words across the document,
+    // while lexical diversity detects repetitive patterns within the match itself.
+    // Low diversity indicates formulaic content (e.g., isnād) where the same
+    // lemmas repeat, even if those lemmas have moderate IDF scores.
+    let mut unique_matched_lemmas: HashSet<u32> = HashSet::new();
 
     while i > 0 && j > 0 && h[i * width + j] > 0 {
         let current = h[i * width + j];
@@ -131,6 +139,7 @@ pub fn align_sequences(
             // Track what kind of match it was
             if lemma_a == lemma_b {
                 lemma_matches += 1;
+                unique_matched_lemmas.insert(lemma_a);
             } else if root_a == root_b && root_a != 0 {
                 root_only_matches += 1;
             } else {
@@ -181,6 +190,13 @@ pub fn align_sequences(
     let (start_a, start_b) = aligned_pairs.first().copied().unwrap_or((0, 0));
     let (end_a, end_b) = aligned_pairs.last().copied().unwrap_or((0, 0));
 
+    // Compute lexical diversity: unique matched lemmas / total lemma matches
+    let lexical_diversity = if lemma_matches > 0 {
+        unique_matched_lemmas.len() as f32 / lemma_matches as f32
+    } else {
+        0.0
+    };
+
     Some(Alignment {
         start_a,
         end_a: end_a + 1,
@@ -193,6 +209,7 @@ pub fn align_sequences(
         gaps,
         score: max_score,
         match_weight_sum: 0.0,
+        lexical_diversity,
     })
 }
 
@@ -593,6 +610,8 @@ pub fn align_sequences_weighted(
     let mut substitutions = 0u32;
     let mut root_only_matches = 0u32;
     let mut match_weight_sum = 0.0f32;
+    // Track unique matched lemma IDs for lexical diversity calculation
+    let mut unique_matched_lemmas: HashSet<u32> = HashSet::new();
 
     while i > 0 && j > 0 && h[i * width + j] > 0 {
         let current = h[i * width + j];
@@ -616,6 +635,7 @@ pub fn align_sequences_weighted(
             // Track what kind of match it was
             if lemma_a == lemma_b {
                 lemma_matches += 1;
+                unique_matched_lemmas.insert(lemma_a);
                 // Add weight to match_weight_sum: min(weight_A, weight_B)
                 let w_a = get_weight(lemma_a, weights_a);
                 let w_b = get_weight(lemma_b, weights_b);
@@ -668,6 +688,13 @@ pub fn align_sequences_weighted(
     let (start_a, start_b) = aligned_pairs.first().copied().unwrap_or((0, 0));
     let (end_a, end_b) = aligned_pairs.last().copied().unwrap_or((0, 0));
 
+    // Compute lexical diversity: unique matched lemmas / total lemma matches
+    let lexical_diversity = if lemma_matches > 0 {
+        unique_matched_lemmas.len() as f32 / lemma_matches as f32
+    } else {
+        0.0
+    };
+
     Some(Alignment {
         start_a,
         end_a: end_a + 1,
@@ -680,6 +707,7 @@ pub fn align_sequences_weighted(
         gaps,
         score: max_score,
         match_weight_sum,
+        lexical_diversity,
     })
 }
 

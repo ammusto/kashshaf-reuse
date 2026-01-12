@@ -201,6 +201,8 @@ fn merge_two_edges(a: &ReuseEdge, b: &ReuseEdge) -> ReuseEdge {
         core_similarity,
         span_coverage,
         content_weight,
+        // For merged edges, average the diversity from both edges
+        lexical_diversity: (a.lexical_diversity + b.lexical_diversity) / 2.0,
         lemma_similarity,
         combined_similarity,
         // For merged edges, we average the weighted metrics
@@ -257,6 +259,7 @@ mod tests {
             core_similarity: 1.0,
             span_coverage: 1.0,
             content_weight: 1.0,
+            lexical_diversity: 1.0,
             lemma_similarity: 1.0,
             combined_similarity: 1.0,
             weighted_similarity: 1.0,

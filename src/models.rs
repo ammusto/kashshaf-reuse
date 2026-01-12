@@ -160,6 +160,13 @@ pub struct Alignment {
     pub gaps: u32,               // Insertions/deletions (up/left moves)
     pub score: i32,
     pub match_weight_sum: f32,   // Sum of weighted lemma matches (document-internal IDF)
+    /// Lexical diversity: unique_matched_lemmas / lemma_matches.
+    /// Low diversity (< 0.55) indicates formulaic content (e.g., isnād phrases)
+    /// where the same lemmas repeat. High diversity indicates substantive reuse
+    /// with varied vocabulary. This metric complements IDF weighting: IDF measures
+    /// rarity across the document, while lexical diversity measures repetition
+    /// within the aligned region itself.
+    pub lexical_diversity: f32,
 }
 
 /// A detected reuse instance
@@ -196,6 +203,13 @@ pub struct ReuseEdge {
     pub core_similarity: f32,    // matches / (matches + subs) - quotation exactness
     pub span_coverage: f32,      // (matches + subs) / aligned_length - reuse vs padding
     pub content_weight: f32,     // match_weight_sum / matches - avg IDF of matches
+
+    /// Lexical diversity: unique_matched_lemmas / lemma_matches.
+    /// Suppresses formulaic reuse (e.g., isnād-style phrases) better than IDF alone.
+    /// IDF weights rare words but doesn't detect repetitive patterns within a match.
+    /// Lexical diversity catches cases where the same common lemmas repeat, indicating
+    /// formulaic content even if individual words have moderate IDF scores.
+    pub lexical_diversity: f32,
 
     // Legacy metrics (kept for backward compatibility)
     pub lemma_similarity: f32,   // lemma_matches / aligned_length
@@ -237,35 +251,78 @@ pub struct ComparisonParams {
     pub use_weights: bool,     // Enable document-internal IDF weighting
     pub min_weighted_similarity: Option<f32>,  // Filter by weighted similarity
     // Three-metric filtering
+    pub no_filters: bool,      // Disable all three-metric filters (exploratory mode)
     pub min_core_similarity: Option<f32>,   // Filter by core similarity (quotation exactness)
     pub min_span_coverage: Option<f32>,     // Filter by span coverage (reuse vs padding)
     pub min_content_weight: Option<f32>,    // Filter by content weight (avg IDF)
+    /// Filter by lexical diversity (unique lemmas / total matches).
+    /// Default 0.55 suppresses formulaic reuse where same lemmas repeat.
+    pub min_lexical_diversity: Option<f32>,
+}
+
+impl ComparisonParams {
+    /// Returns the effective min_core_similarity, respecting no_filters
+    pub fn effective_min_core_similarity(&self) -> Option<f32> {
+        if self.no_filters { None } else { self.min_core_similarity }
+    }
+
+    /// Returns the effective min_span_coverage, respecting no_filters
+    pub fn effective_min_span_coverage(&self) -> Option<f32> {
+        if self.no_filters { None } else { self.min_span_coverage }
+    }
+
+    /// Returns the effective min_content_weight, respecting no_filters
+    pub fn effective_min_content_weight(&self) -> Option<f32> {
+        if self.no_filters { None } else { self.min_content_weight }
+    }
+
+    /// Returns the effective min_lexical_diversity, respecting no_filters
+    pub fn effective_min_lexical_diversity(&self) -> Option<f32> {
+        if self.no_filters { None } else { self.min_lexical_diversity }
+    }
 }
 
 impl Default for ComparisonParams {
     fn default() -> Self {
         Self {
+            // Windowing & filtering (structural, stable)
             window_size: 275,
             stride: 60,
             ngram_size: 5,
             min_shared_shingles: 3,
+
+            // Alignment gates
             min_length: 10,
-            min_similarity: 0.4,
+
+            // Legacy similarity (diagnostic only, not a gate)
+            min_similarity: 0.0,
+
+            // Smith–Waterman scoring
             match_score: 2,
             mismatch_penalty: -1,
             gap_penalty: -1,
+
+            // Core behavior
             brute_force: false,
-            mode: MatchMode::Lemma,
+            mode: MatchMode::Combined,
             lemma_score: 2,
             root_score: 1,
+
+            // IDF weighting (foundational)
             use_weights: true,
             min_weighted_similarity: None,
-            min_core_similarity: None,
-            min_span_coverage: None,
-            min_content_weight: None,
+
+            // Three-metric system (v0.5 defaults)
+            // These are conservative, "scholar-grade" filters
+            no_filters: false,
+            min_core_similarity: Some(0.85),   // exactness
+            min_span_coverage: Some(0.30),     // embedded vs standalone
+            min_content_weight: Some(1.10),    // substantive vocabulary
+            min_lexical_diversity: Some(0.55), // suppress formulaic reuse (e.g., isnād)
         }
     }
 }
+
 
 /// Book metadata from Excel
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -361,6 +418,10 @@ pub struct AlignmentInfo {
     pub span_coverage: f32,        // (matches + subs) / length - reuse vs padding
     pub content_weight: f32,       // avg IDF of matches
 
+    /// Lexical diversity: unique_matched_lemmas / lemma_matches.
+    /// Low values (< 0.55) indicate formulaic content; high values indicate substantive reuse.
+    pub lexical_diversity: f32,
+
     // Legacy metrics (kept for backward compatibility)
     pub similarity: f32,           // lemma_similarity
     pub combined_similarity: f32,  // (lemma + 0.5*root_only) / length
@@ -441,6 +502,7 @@ impl ReuseEdgeWithText {
                 core_similarity: edge.core_similarity,
                 span_coverage: edge.span_coverage,
                 content_weight: edge.content_weight,
+                lexical_diversity: edge.lexical_diversity,
                 similarity: edge.lemma_similarity,
                 combined_similarity: edge.combined_similarity,
                 weighted_similarity: edge.weighted_similarity,

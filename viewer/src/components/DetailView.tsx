@@ -67,7 +67,7 @@ export function DetailView({ edge, bookA, bookB, validation, onValidate }: Props
           </div>
         </div>
 
-        {/* Three metrics row */}
+        {/* Four metrics row */}
         <div className="flex gap-6 pt-2 border-t border-gray-200">
           <div className="flex flex-col items-center">
             <span className="text-xs text-gray-500 uppercase tracking-wide">Core</span>
@@ -89,6 +89,15 @@ export function DetailView({ edge, bookA, bookB, validation, onValidate }: Props
               {(edge.alignment.content_weight ?? edge.alignment.avg_match_weight ?? 1).toFixed(2)}
             </span>
             <span className="text-xs text-gray-400">avg IDF</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-xs text-gray-500 uppercase tracking-wide">Diversity</span>
+            <span className={`text-lg font-bold ${getMetricClass(edge.alignment.lexical_diversity ?? 0, { high: 0.7, medium: 0.55 })}`}>
+              {(edge.alignment.lexical_diversity ?? 0).toFixed(2)}
+            </span>
+            <span className="text-xs text-gray-400">
+              {(edge.alignment.lexical_diversity ?? 0) < 0.55 ? 'formulaic' : 'substantive'}
+            </span>
           </div>
         </div>
       </div>

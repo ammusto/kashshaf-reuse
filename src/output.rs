@@ -36,7 +36,7 @@ pub fn write_csv<W: Write>(edges: &[ReuseEdge], writer: &mut W) -> Result<(), Ou
          target_book_id,target_start_part,target_start_page,target_start_offset,\
          target_end_part,target_end_page,target_end_offset,target_global_start,target_global_end,\
          aligned_length,lemma_matches,substitutions,root_only_matches,gaps,\
-         core_similarity,span_coverage,content_weight,\
+         core_similarity,span_coverage,content_weight,lexical_diversity,\
          lemma_similarity,combined_similarity,weighted_similarity"
     )?;
 
@@ -44,7 +44,7 @@ pub fn write_csv<W: Write>(edges: &[ReuseEdge], writer: &mut W) -> Result<(), Ou
     for edge in edges {
         writeln!(
             writer,
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             edge.id,
             edge.source_book_id,
             edge.source_start_page.0,
@@ -72,6 +72,7 @@ pub fn write_csv<W: Write>(edges: &[ReuseEdge], writer: &mut W) -> Result<(), Ou
             edge.core_similarity,
             edge.span_coverage,
             edge.content_weight,
+            edge.lexical_diversity,
             edge.lemma_similarity,
             edge.combined_similarity,
             edge.weighted_similarity
@@ -119,9 +120,14 @@ pub fn format_page_location(part_index: u32, page_id: u32, offset: u32) -> Strin
 
 /// Format an edge as a human-readable string.
 pub fn format_edge(edge: &ReuseEdge) -> String {
+    let diversity_label = if edge.lexical_diversity < 0.55 {
+        "formulaic"
+    } else {
+        "substantive"
+    };
     format!(
         "Edge {}: len={} matches={} subs={} gaps={}\n\
-         \x20 Core: {:.1}%  Coverage: {:.1}%  Weight: {:.2}\n\
+         \x20 Core: {:.1}%  Coverage: {:.1}%  Weight: {:.2}  Diversity: {:.2} ({})\n\
          \x20 Book {} [{}→{}] ↔ Book {} [{}→{}]",
         edge.id,
         edge.aligned_length,
@@ -131,6 +137,8 @@ pub fn format_edge(edge: &ReuseEdge) -> String {
         edge.core_similarity * 100.0,
         edge.span_coverage * 100.0,
         edge.content_weight,
+        edge.lexical_diversity,
+        diversity_label,
         edge.source_book_id,
         format_page_location(
             edge.source_start_page.0,
@@ -271,9 +279,14 @@ pub fn print_edges_with_text(edges: &[ReuseEdgeWithText], limit: Option<usize>) 
 
 /// Format an edge with text as a human-readable string.
 pub fn format_edge_with_text(edge: &ReuseEdgeWithText) -> String {
+    let diversity_label = if edge.alignment.lexical_diversity < 0.55 {
+        "formulaic"
+    } else {
+        "substantive"
+    };
     format!(
         "Edge {}: len={} matches={} subs={} gaps={}\n\
-         \x20 Core: {:.1}%  Coverage: {:.1}%  Weight: {:.2}\n\
+         \x20 Core: {:.1}%  Coverage: {:.1}%  Weight: {:.2}  Diversity: {:.2} ({})\n\
          \x20 Book {} [{}] ↔ Book {} [{}]\n\
          Source: {}\n\
          Target: {}",
@@ -285,6 +298,8 @@ pub fn format_edge_with_text(edge: &ReuseEdgeWithText) -> String {
         edge.alignment.core_similarity * 100.0,
         edge.alignment.span_coverage * 100.0,
         edge.alignment.content_weight,
+        edge.alignment.lexical_diversity,
+        diversity_label,
         edge.source.book_id,
         edge.source.location,
         edge.target.book_id,
@@ -699,8 +714,8 @@ function App() {{
                                         </button>
                                     </div>
                                 </div>
-                                {{/* Three metrics display */}}
-                                <div className="grid grid-cols-3 gap-4 mb-3">
+                                {{/* Four metrics display */}}
+                                <div className="grid grid-cols-4 gap-4 mb-3">
                                     <div className="bg-white p-2 rounded text-center">
                                         <div className="text-xs text-gray-500">Core Similarity</div>
                                         <div className={{`text-xl font-bold ${{
@@ -733,6 +748,19 @@ function App() {{
                                             {{(selectedEdge.alignment.content_weight || 0).toFixed(2)}}
                                         </div>
                                         <div className="text-xs text-gray-400">avg IDF</div>
+                                    </div>
+                                    <div className="bg-white p-2 rounded text-center">
+                                        <div className="text-xs text-gray-500">Diversity</div>
+                                        <div className={{`text-xl font-bold ${{
+                                            (selectedEdge.alignment.lexical_diversity || 0) >= 0.7 ? 'text-green-600' :
+                                            (selectedEdge.alignment.lexical_diversity || 0) >= 0.55 ? 'text-yellow-600' :
+                                            'text-red-600'
+                                        }}`}}>
+                                            {{(selectedEdge.alignment.lexical_diversity || 0).toFixed(2)}}
+                                        </div>
+                                        <div className="text-xs text-gray-400">
+                                            {{(selectedEdge.alignment.lexical_diversity || 0) < 0.55 ? 'formulaic' : 'substantive'}}
+                                        </div>
                                     </div>
                                 </div>
                                 {{/* Raw counts */}}
@@ -825,6 +853,7 @@ mod tests {
             core_similarity: 0.944,  // 85 / (85 + 5)
             span_coverage: 0.90,     // (85 + 5) / 100
             content_weight: 1.5,
+            lexical_diversity: 0.70, // 70% unique lemmas
             lemma_similarity: 0.85,
             combined_similarity: 0.90,
             weighted_similarity: 0.85,

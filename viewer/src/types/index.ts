@@ -70,6 +70,9 @@ export interface AlignmentInfo {
   core_similarity: number;      // matches / (matches + subs) - quotation exactness
   span_coverage: number;        // (matches + subs) / aligned_length - reuse vs padding
   content_weight: number;       // avg IDF of matched lemmas
+  // Lexical diversity: unique_matched_lemmas / lemma_matches
+  // Low values (< 0.55) indicate formulaic content; high values indicate substantive reuse
+  lexical_diversity: number;
   // Legacy metrics
   similarity: number;
   combined_similarity: number;

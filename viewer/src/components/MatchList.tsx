@@ -49,7 +49,7 @@ export function MatchList({ edges, selectedId, validations, onSelect }: Props) {
             </div>
           </div>
 
-          <div className="text-sm mt-1 text-gray-600 flex gap-3">
+          <div className="text-sm mt-1 text-gray-600 flex gap-2 flex-wrap">
             <span>{edge.alignment.length} tok</span>
             <span className={`${getMetricColor(edge.alignment.core_similarity ?? edge.alignment.similarity, { high: 0.9, medium: 0.7 })}`}>
               C:{((edge.alignment.core_similarity ?? edge.alignment.similarity) * 100).toFixed(0)}%
@@ -59,6 +59,9 @@ export function MatchList({ edges, selectedId, validations, onSelect }: Props) {
             </span>
             <span className={`${getMetricColor(edge.alignment.content_weight ?? 1, { high: 1.5, medium: 1.0 })}`}>
               W:{(edge.alignment.content_weight ?? 1).toFixed(1)}
+            </span>
+            <span className={`${getMetricColor(edge.alignment.lexical_diversity ?? 0, { high: 0.7, medium: 0.55 })}`}>
+              D:{(edge.alignment.lexical_diversity ?? 0).toFixed(2)}
             </span>
           </div>
 

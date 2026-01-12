@@ -201,7 +201,7 @@ pub fn compare_books_from_streams(
     })
 }
 
-/// Filter edges based on the three-metric parameters.
+/// Filter edges based on the metric parameters.
 fn filter_edges_by_params(edges: &[ReuseEdge], params: &ComparisonParams) -> Vec<ReuseEdge> {
     edges
         .iter()
@@ -212,21 +212,25 @@ fn filter_edges_by_params(edges: &[ReuseEdge], params: &ComparisonParams) -> Vec
                     return false;
                 }
             }
-            // Check core similarity filter
-            if let Some(min) = params.min_core_similarity {
+            // Check three-metric filters (respects no_filters flag via effective_* methods)
+            if let Some(min) = params.effective_min_core_similarity() {
                 if edge.core_similarity < min {
                     return false;
                 }
             }
-            // Check span coverage filter
-            if let Some(min) = params.min_span_coverage {
+            if let Some(min) = params.effective_min_span_coverage() {
                 if edge.span_coverage < min {
                     return false;
                 }
             }
-            // Check content weight filter
-            if let Some(min) = params.min_content_weight {
+            if let Some(min) = params.effective_min_content_weight() {
                 if edge.content_weight < min {
+                    return false;
+                }
+            }
+            // Check lexical diversity filter (respects no_filters flag)
+            if let Some(min) = params.effective_min_lexical_diversity() {
+                if edge.lexical_diversity < min {
                     return false;
                 }
             }
@@ -314,6 +318,7 @@ fn alignment_to_edge(window_a: &Window, window_b: &Window, alignment: &Alignment
         core_similarity,
         span_coverage,
         content_weight,
+        lexical_diversity: alignment.lexical_diversity,
         lemma_similarity,
         combined_similarity,
         weighted_similarity,
@@ -821,6 +826,7 @@ impl Default for ReuseEdge {
             core_similarity: 0.0,
             span_coverage: 0.0,
             content_weight: 0.0,
+            lexical_diversity: 0.0,
             lemma_similarity: 0.0,
             combined_similarity: 0.0,
             weighted_similarity: 0.0,

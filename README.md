@@ -6,7 +6,9 @@ High-performance text reuse detection for premodern Arabic texts, written in Rus
 
 Kashshaf-reuse detects text reuse (quotations, paraphrases, shared passages) between Arabic books by comparing **lemma ID sequences** rather than surface text. This approach automatically handles Arabic's rich morphological variation - words like كتاب, كتب, الكتاب, and وكتاب all share the same lemma_id and are treated as matches.
 
-**New in v0.5:** Three-metric scoring system. Replaces single similarity % with three orthogonal metrics that match human scholarly judgment: Core Similarity (quotation exactness), Span Coverage (reuse vs padding), and Content Weight (average IDF).
+**New in v0.6:** Lexical Diversity metric. Suppresses formulaic reuse (e.g., isnād-style phrases) by measuring unique lemmas / total matches. Low diversity indicates repetitive content even when individual words have moderate IDF scores.
+
+**v0.5:** Three-metric scoring system. Replaces single similarity % with three orthogonal metrics that match human scholarly judgment: Core Similarity (quotation exactness), Span Coverage (reuse vs padding), and Content Weight (average IDF).
 
 **v0.4:** Frequency-weighted alignment scoring using document-internal IDF. Rare lemmas contribute more to alignment than common words, suppressing formulaic overlap and strengthening informative reuse detection.
 
@@ -103,9 +105,11 @@ The binary will be at `./target/release/kashshaf-reuse`.
 | `--root-score` | 1 | Score for root-only match (same root, different lemma) |
 | `--use-weights` | true | Enable document-internal IDF weighting |
 | `--min-weighted-similarity` | none | Filter by IDF-weighted similarity |
-| `--min-core-similarity` | none | Filter by core similarity (quotation exactness) |
-| `--min-span-coverage` | none | Filter by span coverage (reuse vs padding) |
-| `--min-content-weight` | none | Filter by content weight (avg lemma IDF) |
+| `--min-core-similarity` | 0.85 | Filter by core similarity (quotation exactness) |
+| `--min-span-coverage` | 0.30 | Filter by span coverage (reuse vs padding) |
+| `--min-content-weight` | 1.10 | Filter by content weight (avg lemma IDF) |
+| `--min-lexical-diversity` | 0.55 | Filter by lexical diversity (unique lemmas / matches) |
+| `--no-filters` | false | Disable all metric filters (exploratory mode) |
 | `--brute-force` | false | Skip filtering, compare all pairs |
 | `--quiet` | false | Suppress progress output |
 | `--show-edges` | none | Print first N edges to console |
@@ -160,6 +164,7 @@ core_similarity = lemma_matches / (lemma_matches + substitutions)
 - Measures **quotation exactness** ignoring gaps
 - High = verbatim quotation, Low = loose paraphrase
 - **0.9+** = verbatim, **0.7-0.9** = light paraphrase, **<0.7** = loose
+- If `lemma_matches == 0`, then `core_similarity = 0`
 
 #### Span Coverage
 ```
@@ -175,33 +180,82 @@ content_weight = match_weight_sum / lemma_matches
 ```
 - **Average IDF** of matched lemmas
 - High = substantive/technical vocabulary, Low = formulaic content
-- Already available as `avg_match_weight`
+- If `lemma_matches == 0`, then `content_weight = 0`
+
+#### Lexical Diversity (v0.6+)
+```
+lexical_diversity = unique_matched_lemmas / lemma_matches
+```
+- Measures **vocabulary variety** within the alignment
+- Low diversity = same lemmas repeat (formulaic content)
+- **0.7+** = substantive, **0.55-0.7** = moderate, **<0.55** = formulaic
+- Complements IDF: IDF weights rare words across the document, diversity detects repetition within the match
+
+**Why lexical diversity helps:**
+
+IDF weighting alone doesn't catch all formulaic content. Consider isnād phrases like "حدثنا فلان عن فلان عن فلان" - the words may have moderate IDF scores individually, but the same lemmas repeat multiple times in the alignment. Lexical diversity catches this pattern:
+
+| Scenario | IDF Weight | Lexical Diversity | Verdict |
+|----------|------------|-------------------|---------|
+| Technical quote | High | High | Substantive |
+| Varied narrative | Medium | High | Substantive |
+| Repetitive isnād | Medium | Low | Formulaic |
+| Common phrases | Low | Low | Formulaic |
+
+#### Root-Only Matches Note
+
+Root-only matches influence alignment discovery and `combined_similarity` but are **excluded from the three quotation-exactness metrics**. This is intentional: core similarity measures exact quotation fidelity, not paraphrase.
 
 #### Interpretation Table
 
-| Scenario | Core | Coverage | Weight |
-|----------|------|----------|--------|
-| Exact standalone quote | High | High | Medium+ |
-| Quote embedded in gloss | High | Low | Medium+ |
-| Formulaic overlap (isnād) | High | High | Low |
-| Paraphrase | Medium | Medium | Medium |
-| Noise | Low | Low | Low |
+| Scenario | Core | Coverage | Weight | Diversity |
+|----------|------|----------|--------|-----------|
+| Exact standalone quote | High | High | Medium+ | High |
+| Quote embedded in gloss | High | Low | Medium+ | High |
+| Formulaic overlap (isnād) | High | High | Low | Low |
+| Repetitive chains | High | High | Medium | Low |
+| Paraphrase | Medium | Medium | Medium | High |
+| Noise | Low | Low | Low | Varies |
 
-#### CLI Example
+#### Recommended Modern Usage
+
+While `--min-similarity` is retained for backward compatibility, the recommended approach for new workflows is to use the metric filters (all enabled by default):
+
 ```bash
-# Find high-quality embedded quotes
+# Default filtering (recommended - all metrics enabled)
 ./kashshaf-reuse compare \
     --corpus-db ./data/corpus.db \
     --book-a 230 --book-b 553 \
-    --min-core-similarity 0.8 \
-    --min-content-weight 1.2 \
     --output ./output/high_quality.json
+
+# Customize thresholds
+./kashshaf-reuse compare \
+    --corpus-db ./data/corpus.db \
+    --book-a 230 --book-b 553 \
+    --min-core-similarity 0.90 \
+    --min-lexical-diversity 0.60 \
+    --output ./output/strict.json
+
+# Exploratory mode (disable all filters)
+./kashshaf-reuse compare \
+    --corpus-db ./data/corpus.db \
+    --book-a 230 --book-b 553 \
+    --no-filters \
+    --output ./output/exploratory.json
+
+# Legacy mode (backward compatible)
+./kashshaf-reuse compare \
+    --corpus-db ./data/corpus.db \
+    --book-a 230 --book-b 553 \
+    --no-filters \
+    --min-similarity 0.4 \
+    --output ./output/legacy.json
 ```
 
 #### Console Output Format
 ```
 Edge 145: len=32 matches=12 subs=2 gaps=18
-  Core: 85.7%  Coverage: 43.8%  Weight: 1.82
+  Core: 85.7%  Coverage: 43.8%  Weight: 1.82  Diversity: 0.75 (substantive)
   Book 230 [1:15.42→1:16.18] ↔ Book 553 [1:3.105→1:4.22]
 ```
 ```bash
@@ -286,6 +340,7 @@ When `--include-text` is enabled (default), the output includes reconstructed Ar
         "core_similarity": 0.963,
         "span_coverage": 0.890,
         "content_weight": 1.08,
+        "lexical_diversity": 0.74,
         "similarity": 0.857,
         "combined_similarity": 0.901,
         "weighted_similarity": 0.92,

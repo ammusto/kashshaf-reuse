@@ -17,7 +17,7 @@ mod output;
 mod window;
 
 use db::{load_book_info, load_corpus_stats};
-use models::ComparisonParams;
+use models::{ComparisonParams, MatchMode};
 use output::{
     print_edges, print_edges_with_text, print_summary, print_summary_with_text,
     write_csv_file, write_csv_with_text_file, write_json_file, write_json_with_text_file,
@@ -44,20 +44,33 @@ enum OutputFormat {
     Viewer,
 }
 
-/// Matching mode for alignment (CLI version)
+/// Matching mode for alignment (CLI version, mirrors models::MatchMode)
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum CliMatchMode {
-    /// Only count lemma matches (current/default behavior)
+    /// Only count lemma matches
     Lemma,
     /// Only count root matches (ignoring lemma)
     Root,
-    /// Lemma match = full score, root-only match = partial score
+    /// Lemma match = full score, root-only match = partial score (default)
     Combined,
+}
+
+impl From<CliMatchMode> for MatchMode {
+    fn from(mode: CliMatchMode) -> Self {
+        match mode {
+            CliMatchMode::Lemma => MatchMode::Lemma,
+            CliMatchMode::Root => MatchMode::Root,
+            CliMatchMode::Combined => MatchMode::Combined,
+        }
+    }
 }
 
 #[derive(Subcommand)]
 enum Commands {
     /// Compare two books for text reuse
+    ///
+    /// All parameters default to scholar-grade settings from ComparisonParams::default().
+    /// Override any parameter explicitly to customize behavior.
     Compare {
         /// Path to corpus.db
         #[arg(long)]
@@ -83,7 +96,7 @@ enum Commands {
         #[arg(long)]
         csv: bool,
 
-        /// Include reconstructed Arabic text in output (default: true)
+        /// Include reconstructed Arabic text in output
         #[arg(long, default_value = "true")]
         include_text: bool,
 
@@ -91,77 +104,89 @@ enum Commands {
         #[arg(long, default_value = "30")]
         context_tokens: usize,
 
-        /// Window size in tokens
-        #[arg(long, default_value = "275")]
-        window_size: usize,
+        // === Parameters that inherit from ComparisonParams::default() ===
+        // All use Option<T> so we can detect "user didn't specify" vs "user set explicitly"
 
-        /// Stride between windows
-        #[arg(long, default_value = "60")]
-        stride: usize,
+        /// Window size in tokens [default: 275]
+        #[arg(long)]
+        window_size: Option<usize>,
 
-        /// N-gram size for filtering
-        #[arg(long, default_value = "5")]
-        ngram_size: usize,
+        /// Stride between windows [default: 60]
+        #[arg(long)]
+        stride: Option<usize>,
 
-        /// Minimum shared shingles
-        #[arg(long, default_value = "3")]
-        min_shared_shingles: usize,
+        /// N-gram size for filtering [default: 5]
+        #[arg(long)]
+        ngram_size: Option<usize>,
 
-        /// Minimum aligned length
-        #[arg(long, default_value = "10")]
-        min_length: usize,
+        /// Minimum shared shingles [default: 3]
+        #[arg(long)]
+        min_shared_shingles: Option<usize>,
 
-        /// Minimum similarity ratio (0.0-1.0)
-        #[arg(long, default_value = "0.4")]
-        min_similarity: f32,
+        /// Minimum aligned length [default: 10]
+        #[arg(long)]
+        min_length: Option<usize>,
 
-        /// Match score for alignment
-        #[arg(long, default_value = "2")]
-        match_score: i32,
+        /// Minimum similarity ratio - legacy, prefer three-metric filters [default: 0.0]
+        #[arg(long)]
+        min_similarity: Option<f32>,
 
-        /// Mismatch penalty for alignment
-        #[arg(long, default_value = "-1")]
-        mismatch_penalty: i32,
+        /// Match score for alignment [default: 2]
+        #[arg(long)]
+        match_score: Option<i32>,
 
-        /// Gap penalty for alignment
-        #[arg(long, default_value = "-1")]
-        gap_penalty: i32,
+        /// Mismatch penalty for alignment [default: -1]
+        #[arg(long)]
+        mismatch_penalty: Option<i32>,
+
+        /// Gap penalty for alignment [default: -1]
+        #[arg(long)]
+        gap_penalty: Option<i32>,
 
         /// Skip filtering, compare all pairs (slower but thorough)
         #[arg(long)]
         brute_force: bool,
 
-        /// Matching mode: lemma (default), root, or combined
-        #[arg(long, value_enum, default_value = "lemma")]
-        mode: CliMatchMode,
+        /// Matching mode [default: combined]
+        #[arg(long, value_enum)]
+        mode: Option<CliMatchMode>,
 
-        /// Score for lemma match (used in combined mode)
-        #[arg(long, default_value = "2")]
-        lemma_score: i32,
+        /// Score for lemma match (used in combined mode) [default: 2]
+        #[arg(long)]
+        lemma_score: Option<i32>,
 
-        /// Score for root-only match (same root, different lemma)
-        #[arg(long, default_value = "1")]
-        root_score: i32,
+        /// Score for root-only match (same root, different lemma) [default: 1]
+        #[arg(long)]
+        root_score: Option<i32>,
 
-        /// Enable document-internal IDF weighting for alignment scoring
-        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
-        use_weights: bool,
+        /// Enable document-internal IDF weighting for alignment scoring [default: true]
+        #[arg(long, action = clap::ArgAction::Set)]
+        use_weights: Option<bool>,
 
         /// Filter by weighted similarity (IDF-weighted informational density)
         #[arg(long)]
         min_weighted_similarity: Option<f32>,
 
-        /// Filter by core similarity (quotation exactness: matches / (matches + subs))
+        /// Filter by core similarity (quotation exactness) [default: 0.85]
         #[arg(long)]
         min_core_similarity: Option<f32>,
 
-        /// Filter by span coverage (reuse vs padding: (matches + subs) / aligned_length)
+        /// Filter by span coverage (reuse vs padding) [default: 0.30]
         #[arg(long)]
         min_span_coverage: Option<f32>,
 
-        /// Filter by content weight (average IDF of matched lemmas)
+        /// Filter by content weight (avg IDF of matched lemmas) [default: 1.10]
         #[arg(long)]
         min_content_weight: Option<f32>,
+
+        /// Filter by lexical diversity (unique lemmas / matches) [default: 0.55]
+        /// Low diversity indicates formulaic content like isnād phrases
+        #[arg(long)]
+        min_lexical_diversity: Option<f32>,
+
+        /// Disable all metric filters (for exploratory analysis)
+        #[arg(long)]
+        no_filters: bool,
 
         /// Suppress progress output
         #[arg(long)]
@@ -237,35 +262,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             min_core_similarity,
             min_span_coverage,
             min_content_weight,
+            min_lexical_diversity,
+            no_filters,
             quiet,
             show_edges,
         } => {
-            // Convert CLI match mode to library match mode
-            let match_mode = match mode {
-                CliMatchMode::Lemma => models::MatchMode::Lemma,
-                CliMatchMode::Root => models::MatchMode::Root,
-                CliMatchMode::Combined => models::MatchMode::Combined,
-            };
+            // Start with library defaults (scholar-grade settings)
+            let defaults = ComparisonParams::default();
 
+            // Build params by overlaying user-specified values onto defaults
             let params = ComparisonParams {
-                window_size,
-                stride,
-                ngram_size,
-                min_shared_shingles,
-                min_length,
-                min_similarity,
-                match_score,
-                mismatch_penalty,
-                gap_penalty,
+                window_size: window_size.unwrap_or(defaults.window_size),
+                stride: stride.unwrap_or(defaults.stride),
+                ngram_size: ngram_size.unwrap_or(defaults.ngram_size),
+                min_shared_shingles: min_shared_shingles.unwrap_or(defaults.min_shared_shingles),
+                min_length: min_length.unwrap_or(defaults.min_length),
+                min_similarity: min_similarity.unwrap_or(defaults.min_similarity),
+                match_score: match_score.unwrap_or(defaults.match_score),
+                mismatch_penalty: mismatch_penalty.unwrap_or(defaults.mismatch_penalty),
+                gap_penalty: gap_penalty.unwrap_or(defaults.gap_penalty),
                 brute_force,
-                mode: match_mode,
-                lemma_score,
-                root_score,
-                use_weights,
-                min_weighted_similarity,
-                min_core_similarity,
-                min_span_coverage,
-                min_content_weight,
+                mode: mode.map(MatchMode::from).unwrap_or(defaults.mode),
+                lemma_score: lemma_score.unwrap_or(defaults.lemma_score),
+                root_score: root_score.unwrap_or(defaults.root_score),
+                use_weights: use_weights.unwrap_or(defaults.use_weights),
+                min_weighted_similarity: min_weighted_similarity.or(defaults.min_weighted_similarity),
+                // Metric filters: no_filters is explicit in params, effective_* methods handle it
+                no_filters,
+                min_core_similarity: min_core_similarity.or(defaults.min_core_similarity),
+                min_span_coverage: min_span_coverage.or(defaults.min_span_coverage),
+                min_content_weight: min_content_weight.or(defaults.min_content_weight),
+                min_lexical_diversity: min_lexical_diversity.or(defaults.min_lexical_diversity),
             };
 
             // Determine if we need text reconstruction
