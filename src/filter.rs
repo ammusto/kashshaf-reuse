@@ -18,15 +18,6 @@ pub fn generate_shingles(lemma_ids: &[u32], n: usize) -> HashSet<Vec<u32>> {
     lemma_ids.windows(n).map(|w| w.to_vec()).collect()
 }
 
-/// Generate shingles and return them as a vector (faster for indexing)
-pub fn generate_shingles_vec(lemma_ids: &[u32], n: usize) -> Vec<Vec<u32>> {
-    if lemma_ids.len() < n || n == 0 {
-        return Vec::new();
-    }
-
-    lemma_ids.windows(n).map(|w| w.to_vec()).collect()
-}
-
 /// Find candidate window pairs that share enough shingles.
 ///
 /// This function builds an inverted index of shingles from windows_b,
@@ -98,51 +89,6 @@ fn generate_all_pairs(len_a: usize, len_b: usize) -> Vec<(usize, usize)> {
         }
     }
     pairs
-}
-
-/// Count total unique shingles across all windows
-pub fn count_unique_shingles(windows: &[Window], ngram_size: usize) -> usize {
-    let mut all_shingles: HashSet<Vec<u32>> = HashSet::new();
-
-    for window in windows {
-        let shingles = generate_shingles(&window.lemma_ids, ngram_size);
-        all_shingles.extend(shingles);
-    }
-
-    all_shingles.len()
-}
-
-/// Calculate the Jaccard similarity between two shingle sets
-pub fn jaccard_similarity(shingles_a: &HashSet<Vec<u32>>, shingles_b: &HashSet<Vec<u32>>) -> f32 {
-    if shingles_a.is_empty() && shingles_b.is_empty() {
-        return 1.0;
-    }
-
-    let intersection = shingles_a.intersection(shingles_b).count();
-    let union = shingles_a.len() + shingles_b.len() - intersection;
-
-    if union == 0 {
-        0.0
-    } else {
-        intersection as f32 / union as f32
-    }
-}
-
-/// Estimate filtering effectiveness
-pub fn estimate_filtering_rate(
-    windows_a: &[Window],
-    windows_b: &[Window],
-    params: &ComparisonParams,
-) -> f32 {
-    let total_pairs = windows_a.len() * windows_b.len();
-    if total_pairs == 0 {
-        return 0.0;
-    }
-
-    let candidates = find_candidate_pairs(windows_a, windows_b, params);
-    let filtered_pairs = candidates.len();
-
-    1.0 - (filtered_pairs as f32 / total_pairs as f32)
 }
 
 #[cfg(test)]
@@ -248,34 +194,4 @@ mod tests {
         assert!(!pairs.contains(&(1, 1))); // No shared shingles
     }
 
-    #[test]
-    fn test_jaccard_similarity() {
-        let set_a: HashSet<Vec<u32>> = vec![vec![1, 2], vec![2, 3], vec![3, 4]]
-            .into_iter()
-            .collect();
-        let set_b: HashSet<Vec<u32>> = vec![vec![2, 3], vec![3, 4], vec![4, 5]]
-            .into_iter()
-            .collect();
-
-        // Intersection: [2,3], [3,4] = 2
-        // Union: [1,2], [2,3], [3,4], [4,5] = 4
-        // Jaccard = 2/4 = 0.5
-        let similarity = jaccard_similarity(&set_a, &set_b);
-        assert!((similarity - 0.5).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_jaccard_similarity_identical() {
-        let set: HashSet<Vec<u32>> = vec![vec![1, 2], vec![2, 3]].into_iter().collect();
-        let similarity = jaccard_similarity(&set, &set);
-        assert!((similarity - 1.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_jaccard_similarity_disjoint() {
-        let set_a: HashSet<Vec<u32>> = vec![vec![1, 2]].into_iter().collect();
-        let set_b: HashSet<Vec<u32>> = vec![vec![3, 4]].into_iter().collect();
-        let similarity = jaccard_similarity(&set_a, &set_b);
-        assert!(similarity < 0.001);
-    }
 }

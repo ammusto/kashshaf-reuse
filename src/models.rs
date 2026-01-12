@@ -58,51 +58,6 @@ impl BookTokenStream {
         self.pages.len()
     }
 
-    /// Convert to a BookLemmaStream (for compatibility with existing code)
-    pub fn to_lemma_stream(&self) -> BookLemmaStream {
-        BookLemmaStream {
-            book_id: self.book_id,
-            total_tokens: self.total_tokens,
-            pages: self.pages
-                .iter()
-                .map(|p| PageLemmas {
-                    part_index: p.part_index,
-                    page_id: p.page_id,
-                    lemma_ids: p.lemma_ids.clone(),
-                })
-                .collect(),
-        }
-    }
-
-    /// Get surface text for a range of global positions
-    pub fn get_surface_text(
-        &self,
-        global_start: usize,
-        global_end: usize,
-        token_to_surface: &[String],
-    ) -> String {
-        let token_ids = self.flat_token_ids();
-
-        let start = global_start.min(token_ids.len());
-        let end = global_end.min(token_ids.len());
-
-        if start >= end {
-            return String::new();
-        }
-
-        token_ids[start..end]
-            .iter()
-            .filter_map(|&tid| {
-                if (tid as usize) < token_to_surface.len() {
-                    Some(token_to_surface[tid as usize].as_str())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
-
     /// Get surface text with context before and after
     pub fn get_surface_text_with_context(
         &self,
@@ -176,6 +131,7 @@ impl BookLemmaStream {
 
 /// A window into a book's lemma/root stream
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Window {
     pub book_id: u32,
     pub window_idx: u32,
@@ -191,6 +147,7 @@ pub struct Window {
 
 /// Result of Smith-Waterman alignment
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Alignment {
     pub start_a: usize,
     pub end_a: usize,
@@ -529,10 +486,3 @@ pub struct ComparisonResultWithText {
     pub edges: Vec<ReuseEdgeWithText>,
 }
 
-/// Output format options
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputFormat {
-    Json,
-    Csv,
-    Viewer,  // Self-contained HTML with embedded React viewer
-}

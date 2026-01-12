@@ -57,28 +57,19 @@ pub mod window;
 
 /// Prelude module for convenient imports.
 pub mod prelude {
-    pub use crate::align::{align_lemma_sequences, align_lemma_sequences_banded, align_sequences};
-    pub use crate::compare::{
-        compare_books, compare_books_from_streams, compare_books_from_token_streams,
-        compare_books_with_text,
-    };
+    pub use crate::align::{align_lemma_sequences, align_sequences};
+    pub use crate::compare::{compare_books, compare_books_from_streams, compare_books_with_text};
     pub use crate::db::{
-        get_lemma_text, get_lemma_texts, load_all_token_mappings, load_book_info,
-        load_book_lemma_stream, load_book_token_stream, load_book_token_stream_with_root,
-        load_corpus_stats, load_metadata_from_excel, load_token_mappings, load_token_to_lemma,
-        load_token_to_root, load_token_to_surface, DbError,
+        load_all_token_mappings, load_book_info, load_book_lemma_stream,
+        load_book_token_stream_with_root, load_corpus_stats, load_token_to_lemma, DbError,
     };
-    pub use crate::extract::{
-        calculate_lemma_stats, extract_book_lemmas, extract_books_lemmas, find_position_by_page,
-        get_lemma_slice, get_page_lemmas, LemmaStats,
-    };
-    pub use crate::filter::{find_candidate_pairs, generate_shingles, jaccard_similarity};
-    pub use crate::merge::{merge_adjacent_edges, merge_overlapping_edges, remove_subsumed_edges};
+    pub use crate::filter::{find_candidate_pairs, generate_shingles};
+    pub use crate::merge::merge_overlapping_edges;
     pub use crate::models::{
         Alignment, AlignmentInfo, BookInfo, BookLemmaStream, BookMetadata, BookTokenStream,
         ComparisonParams, ComparisonResult, ComparisonResultWithText, ComparisonSummary,
-        CorpusStats, MatchMode, OutputFormat, PageInfo, PageLemmas, PageTokens, PassageRef,
-        PassageText, ReuseEdge, ReuseEdgeWithText, ViewerBookInfo, Window,
+        CorpusStats, MatchMode, PageInfo, PageLemmas, PageTokens, PassageRef, PassageText,
+        ReuseEdge, ReuseEdgeWithText, ViewerBookInfo, Window,
     };
     pub use crate::output::{
         format_edge, format_edge_with_text, format_page_location, generate_viewer_html,
@@ -86,7 +77,7 @@ pub mod prelude {
         write_csv_file, write_csv_with_text, write_csv_with_text_file, write_json, write_json_file,
         write_json_with_text, write_json_with_text_file, write_viewer_html_file, OutputError,
     };
-    pub use crate::window::{calculate_window_count, generate_windows, generate_windows_with_roots};
+    pub use crate::window::{generate_windows, generate_windows_with_roots};
 }
 
 // Re-export commonly used types at the crate root

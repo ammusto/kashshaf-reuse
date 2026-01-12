@@ -252,47 +252,6 @@ fn count_root_matches(
 }
 
 /// Banded Smith-Waterman for even faster alignment.
-/// Only computes cells within `band` diagonals of the main diagonal.
-///
-/// This is useful when we expect the aligned regions to be roughly
-/// at the same positions in both sequences.
-///
-/// Note: Currently falls back to full alignment. Banded implementation
-/// is a future optimization.
-#[inline]
-pub fn align_lemma_sequences_banded(
-    seq_a: &[u32],
-    seq_b: &[u32],
-    params: &ComparisonParams,
-    _band: usize,
-) -> Option<Alignment> {
-    // TODO: Implement proper banded alignment for additional speedup
-    // For now, fall back to full alignment
-    align_lemma_sequences(seq_a, seq_b, params)
-}
-
-/// Quick check if two sequences might have a significant alignment.
-/// Uses a simple count of shared lemmas to avoid expensive alignment.
-#[inline]
-pub fn quick_similarity_check(seq_a: &[u32], seq_b: &[u32], min_shared: usize) -> bool {
-    if seq_a.len() < min_shared || seq_b.len() < min_shared {
-        return false;
-    }
-
-    // Count shared lemmas using a simple approach
-    let mut count = 0;
-    for &lemma in seq_a {
-        if seq_b.contains(&lemma) {
-            count += 1;
-            if count >= min_shared {
-                return true;
-            }
-        }
-    }
-
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

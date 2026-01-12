@@ -375,36 +375,6 @@ fn merge_ranges(ranges: &[(usize, usize)]) -> Vec<(usize, usize)> {
     merged
 }
 
-/// Batch comparison of multiple book pairs.
-pub fn compare_book_pairs(
-    pairs: &[(u32, u32)],
-    db_path: &Path,
-    params: &ComparisonParams,
-    show_progress: bool,
-) -> Result<Vec<ComparisonResult>, DbError> {
-    if show_progress {
-        eprintln!("Loading token-to-lemma mapping...");
-    }
-    let token_to_lemma = load_token_to_lemma(db_path)?;
-
-    let results: Vec<Result<ComparisonResult, DbError>> = pairs
-        .iter()
-        .map(|&(book_a_id, book_b_id)| {
-            if show_progress {
-                eprintln!("\nComparing books {} and {}...", book_a_id, book_b_id);
-            }
-
-            let stream_a = load_book_lemma_stream(db_path, book_a_id, &token_to_lemma)?;
-            let stream_b = load_book_lemma_stream(db_path, book_b_id, &token_to_lemma)?;
-
-            compare_books_from_streams(&stream_a, &stream_b, params, show_progress)
-        })
-        .collect();
-
-    // Collect results, propagating first error if any
-    results.into_iter().collect()
-}
-
 // ============================================================================
 // Enhanced comparison with text reconstruction
 // ============================================================================
@@ -651,52 +621,6 @@ fn compare_token_streams_internal(
         },
         summary,
         edges: filtered_edges,
-    })
-}
-
-/// Compare two books from pre-loaded token streams with text reconstruction.
-/// Supports all matching modes (lemma, root, combined).
-pub fn compare_books_from_token_streams(
-    stream_a: &BookTokenStream,
-    stream_b: &BookTokenStream,
-    token_to_surface: &[String],
-    params: &ComparisonParams,
-    context_tokens: usize,
-    show_progress: bool,
-) -> Result<ComparisonResultWithText, DbError> {
-    // Run comparison with root support
-    let result = compare_token_streams_internal(stream_a, stream_b, params, show_progress)?;
-
-    // Reconstruct text for each edge
-    if show_progress {
-        eprintln!("Reconstructing text for {} edges...", result.edges.len());
-    }
-
-    let edges_with_text: Vec<ReuseEdgeWithText> = result
-        .edges
-        .iter()
-        .map(|edge| {
-            ReuseEdgeWithText::from_edge(
-                edge,
-                stream_a,
-                stream_b,
-                token_to_surface,
-                context_tokens,
-            )
-        })
-        .collect();
-
-    // Get current timestamp
-    let generated_at = chrono_lite_timestamp();
-
-    Ok(ComparisonResultWithText {
-        version: result.version,
-        generated_at,
-        parameters: result.parameters,
-        book_a: ViewerBookInfo::from(&result.book_a),
-        book_b: ViewerBookInfo::from(&result.book_b),
-        summary: result.summary,
-        edges: edges_with_text,
     })
 }
 

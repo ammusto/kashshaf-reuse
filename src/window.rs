@@ -276,22 +276,6 @@ fn find_page_and_offset_tokens(
     ((offset.part_index, offset.page_id), offset_within_page)
 }
 
-/// Calculate the number of windows that will be generated for a given stream size
-pub fn calculate_window_count(stream_length: usize, params: &ComparisonParams) -> usize {
-    if stream_length < params.window_size {
-        return if stream_length > 0 { 1 } else { 0 };
-    }
-
-    let full_windows = (stream_length - params.window_size) / params.stride + 1;
-    let remaining = stream_length - (full_windows - 1) * params.stride - params.window_size;
-
-    if remaining >= params.min_length {
-        full_windows + 1
-    } else {
-        full_windows
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

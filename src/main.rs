@@ -16,7 +16,7 @@ mod models;
 mod output;
 mod window;
 
-use db::{load_book_info, load_corpus_stats, DbError};
+use db::{load_book_info, load_corpus_stats};
 use models::ComparisonParams;
 use output::{
     print_edges, print_edges_with_text, print_summary, print_summary_with_text,
